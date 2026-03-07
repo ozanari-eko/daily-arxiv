@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Daily arXiv — QuTech</title>
+  <style>
+    :root {
+      --bg: #0b0e14;
+      --panel: #111827;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --accent: #60a5fa;
+      --border: rgba(255,255,255,0.08);
+      --border-strong: rgba(96,165,250,0.35);
+      --label: #cbd5e1;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      backdrop-filter: blur(10px);
+      background: rgba(11,14,20,0.75);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 16px;
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 5;
+    }
+
+    .brand {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .logo {
+      width: 44px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    .title {
+      font-weight: 700;
+      font-size: 16px;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 2px;
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    select, button {
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 9px 12px;
+      font-size: 13px;
+    }
+
+    button { cursor: pointer; }
+
+    .container {
+      max-width: 1380px;
+      margin: 18px auto;
+      padding: 0 16px 28px;
+    }
+
+    .stats {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 12px 14px;
+      background: rgba(17,24,39,0.6);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .section-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+      margin: 18px 0 10px;
+    }
+
+    .section-sub {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .list {
+      display: grid;
+      gap: 16px;
+      margin-top: 10px;
+    }
+
+    .card {
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 14px 16px;
+      background: rgba(17,24,39,0.55);
+    }
+
+    .card.highlight {
+      border-color: var(--border-strong);
+      box-shadow: 0 0 0 1px rgba(96,165,250,0.06) inset;
+      background: linear-gradient(180deg, rgba(17,24,39,0.72), rgba(11,19,36,0.72));
+    }
+
+    .row1 {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      justify-content: space-between;
+    }
+
+    .paper-title {
+      font-weight: 700;
+      font-size: 15px;
+      line-height: 1.3;
+      max-width: 82%;
+    }
+
+    .meta {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 8px;
+      line-height: 1.45;
+    }
+
+    .summary {
+      margin-top: 14px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .summary b {
+      color: var(--label);
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin-top: 12px;
+    }
+
+    .chip, .badge {
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .chip {
+      border: 1px solid var(--border);
+      color: var(--muted);
+      background: rgba(255,255,255,0.02);
+    }
+
+    .badge {
+      border: 1px solid rgba(96,165,250,0.55);
+      color: #dbeafe;
+      background: rgba(96,165,250,0.14);
+    }
+
+    .detail-block {
+      margin-top: 14px;
+      padding: 14px 15px;
+      border: 1px solid rgba(96,165,250,0.18);
+      border-radius: 14px;
+      background: linear-gradient(180deg, rgba(96,165,250,0.08), rgba(11,19,36,0.55));
+      font-size: 15px;
+      line-height: 1.55;
+    }
+
+    .detail-block .first {
+      color: #eaf2ff;
+      margin-bottom: 12px;
+    }
+
+    .detail-row {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      color: var(--text);
+    }
+
+    .detail-row b {
+      color: #bfdbfe;
+      display: inline-block;
+      min-width: 150px;
+    }
+
+    a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .footer {
+      color: var(--muted);
+      font-size: 12px;
+      border-top: 1px solid var(--border);
+      padding: 18px 16px;
+      text-align: center;
+      margin-top: 24px;
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">arXiv</div>
+      <div>
+        <div class="title">Daily arXiv — QuTech</div>
+        <div class="subtitle">quant-ph + physics.optics + physics.atom-ph • summaries via Codex</div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <select id="dateSelect" title="Select day"></select>
+      <button id="reloadBtn">Reload</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="stats" id="stats">Loading…</div>
+
+    <section id="highlightsSection">
+      <div class="section-head">
+        <h2>Highlights</h2>
+        <div class="section-sub" id="highlightsSub"></div>
+      </div>
+      <div class="list" id="highlightsList"></div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>Feed</h2>
+        <div class="section-sub" id="feedSub"></div>
+      </div>
+      <div class="list" id="list"></div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    Local site. Data files are in <code>./data/</code>.
+  </footer>
+
+  <script>
+    function esc(s) {
+      if (s === null || s === undefined) return "";
+      return String(s)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function getBasePath() {
+      var path = window.location.pathname || "";
+      if (path.indexOf("/daily-arxiv/") === 0) {
+        return "/daily-arxiv";
+      }
+      return "";
+    }
+
+    var BASE = getBasePath();
+
+    async function fetchText(url) {
+      const r = await fetch(url, { cache: "no-store" });
+      if (!r.ok) throw new Error("Fetch failed: " + url + " (" + r.status + ")");
+      return await r.text();
+    }
+
+    async function fetchJSONL(url) {
+      const txt = await fetchText(url);
+      const lines = txt.split("\n").map(function(s) { return s.trim(); }).filter(Boolean);
+      return lines.map(function(l) { return JSON.parse(l); });
+    }
+
+    function renderCard(it, highlightMode) {
+      var title = it.title || "(no title)";
+      var link = it.link || "#";
+      var authorsArr = Array.isArray(it.authors) ? it.authors : [];
+      var authors = authorsArr.slice(0, 6).join(", ");
+      if (authorsArr.length > 6) authors += " et al.";
+
+      var buckets = Array.isArray(it.highlight_buckets) ? it.highlight_buckets : [];
+      var kws = Array.isArray(it.keywords) ? it.keywords.slice(0, 8) : [];
+      var cats = Array.isArray(it.categories) ? it.categories.slice(0, 6) : [];
+
+      var badgeHtml = "";
+      for (var i = 0; i < buckets.length; i++) {
+        badgeHtml += '<span class="badge">' + esc(buckets[i]) + '</span>';
+      }
+
+      var catsHtml = "";
+      for (var j = 0; j < cats.length; j++) {
+        catsHtml += '<span class="chip">' + esc(cats[j]) + '</span>';
+      }
+
+      var kwsHtml = "";
+      for (var k = 0; k < kws.length; k++) {
+        kwsHtml += '<span class="chip">' + esc(kws[k]) + '</span>';
+      }
+
+      var detailBlock = "";
+      if (highlightMode && (it.detailed_summary || it.platform_or_system || it.main_result || it.application_angle)) {
+        detailBlock = '<div class="detail-block">';
+        if (it.detailed_summary) {
+          detailBlock += '<div class="first">' + esc(it.detailed_summary) + '</div>';
+        }
+        if (it.platform_or_system) {
+          detailBlock += '<div class="detail-row"><b>Platform/System:</b> ' + esc(it.platform_or_system) + '</div>';
+        }
+        if (it.main_result) {
+          detailBlock += '<div class="detail-row"><b>Main result:</b> ' + esc(it.main_result) + '</div>';
+        }
+        if (it.application_angle) {
+          detailBlock += '<div class="detail-row"><b>Application angle:</b> ' + esc(it.application_angle) + '</div>';
+        }
+        detailBlock += '</div>';
+      }
+
+      return ''
+        + '<div class="card ' + (highlightMode ? 'highlight' : '') + '">'
+        + '  <div class="row1">'
+        + '    <div class="paper-title"><a href="' + esc(link) + '" target="_blank" rel="noreferrer">' + esc(title) + '</a></div>'
+        + '    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">'
+        +        badgeHtml
+        + '      <div class="chip">' + esc(it.arxiv_id || "") + '</div>'
+        + '    </div>'
+        + '  </div>'
+        + '  <div class="meta">'
+        +       (authors ? '<div><b>Authors:</b> ' + esc(authors) + '</div>' : '')
+        +       (it.published ? '<div><b>Published:</b> ' + esc(it.published) + '</div>' : '')
+        +       (catsHtml ? '<div class="chips">' + catsHtml + '</div>' : '')
+        + '  </div>'
+        + '  <div class="summary">'
+        + '    <div><b>One-liner:</b> ' + esc(it.one_liner || "") + '</div>'
+        + '    <div style="margin-top:6px"><b>Why it matters:</b> ' + esc(it.why_it_matters || "") + '</div>'
+        + '  </div>'
+        +      detailBlock
+        +       (kwsHtml ? '<div class="chips">' + kwsHtml + '</div>' : '')
+        + '</div>';
+    }
+
+    async function main() {
+      var dateSelect = document.getElementById("dateSelect");
+      var reloadBtn = document.getElementById("reloadBtn");
+      var stats = document.getElementById("stats");
+      var highlightsSection = document.getElementById("highlightsSection");
+      var highlightsList = document.getElementById("highlightsList");
+      var highlightsSub = document.getElementById("highlightsSub");
+      var feedList = document.getElementById("list");
+      var feedSub = document.getElementById("feedSub");
+
+      async function loadSelected() {
+        var fn = dateSelect.value;
+        if (!fn) {
+          stats.textContent = "No date selected.";
+          return;
+        }
+
+        stats.textContent = "Loading…";
+        highlightsList.innerHTML = "";
+        feedList.innerHTML = "";
+
+        try {
+          var items = await fetchJSONL(BASE + "/data/" + fn);
+          stats.textContent = fn + " • " + items.length + " papers";
+
+          var highlights = items.filter(function(x) { return !!x.is_highlight; });
+          var rest = items.filter(function(x) { return !x.is_highlight; });
+
+          if (highlights.length) {
+            highlightsSection.style.display = "block";
+            highlightsSub.textContent = highlights.length + " highlighted papers";
+            highlightsList.innerHTML = highlights.map(function(it) { return renderCard(it, true); }).join("");
+          } else {
+            highlightsSection.style.display = "none";
+            highlightsSub.textContent = "";
+          }
+
+          feedSub.textContent = rest.length + " papers";
+          feedList.innerHTML = rest.map(function(it) { return renderCard(it, false); }).join("");
+        } catch (e) {
+          console.error(e);
+          stats.textContent = "Load error: " + e;
+        }
+      }
+
+      try {
+        var txt = await fetchText(BASE + "/assets/file-list.txt");
+        var files = txt.split("\n").map(function(s) { return s.trim(); }).filter(Boolean);
+
+        if (!files.length) {
+          stats.textContent = "file-list.txt is empty.";
+          return;
+        }
+
+        dateSelect.innerHTML = files.map(function(fn) {
+          return '<option value="' + esc(fn) + '">' + esc(fn.replace("_enhanced.jsonl", "")) + '</option>';
+        }).join("");
+
+        reloadBtn.addEventListener("click", loadSelected);
+        dateSelect.addEventListener("change", loadSelected);
+
+        await loadSelected();
+      } catch (e) {
+        console.error(e);
+        stats.textContent = "Startup error: " + e;
+      }
+    }
+
+    main();
+  </script>
+</body>
+</html>
