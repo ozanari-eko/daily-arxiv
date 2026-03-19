@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Daily arXiv — QuTech</title>
+  <title>Weekly arXiv — QuTech</title>
   <style>
     :root {
       --bg: #0b0e14;
@@ -236,13 +236,13 @@
     <div class="brand">
       <div class="logo">arXiv</div>
       <div>
-        <div class="title">Daily arXiv — QuTech</div>
+        <div class="title">Weekly arXiv — QuTech</div>
         <div class="subtitle">quant-ph + physics.optics + physics.atom-ph • summaries via Codex</div>
       </div>
     </div>
 
     <div class="controls">
-      <select id="dateSelect" title="Select day"></select>
+      <select id="weekSelect" title="Select week"></select>
       <button id="reloadBtn">Reload</button>
     </div>
   </header>
@@ -268,7 +268,7 @@
   </main>
 
   <footer class="footer">
-    Local site. Data files are in <code>./data/</code>.
+    Weekly local/GitHub Pages site.
   </footer>
 
   <script>
@@ -284,9 +284,7 @@
 
     function getBasePath() {
       var path = window.location.pathname || "";
-      if (path.indexOf("/daily-arxiv/") === 0) {
-        return "/daily-arxiv";
-      }
+      if (path.indexOf("/daily-arxiv/") === 0) return "/daily-arxiv";
       return "";
     }
 
@@ -372,7 +370,7 @@
     }
 
     async function main() {
-      var dateSelect = document.getElementById("dateSelect");
+      var weekSelect = document.getElementById("weekSelect");
       var reloadBtn = document.getElementById("reloadBtn");
       var stats = document.getElementById("stats");
       var highlightsSection = document.getElementById("highlightsSection");
@@ -382,9 +380,9 @@
       var feedSub = document.getElementById("feedSub");
 
       async function loadSelected() {
-        var fn = dateSelect.value;
+        var fn = weekSelect.value;
         if (!fn) {
-          stats.textContent = "No date selected.";
+          stats.textContent = "No week selected.";
           return;
         }
 
@@ -394,7 +392,8 @@
 
         try {
           var items = await fetchJSONL(BASE + "/data/" + fn);
-          stats.textContent = fn + " • " + items.length + " papers";
+          var weekLabel = fn.replace("_week_enhanced.jsonl", "");
+          stats.textContent = weekLabel + " week • " + items.length + " papers";
 
           var highlights = items.filter(function(x) { return !!x.is_highlight; });
           var rest = items.filter(function(x) { return !x.is_highlight; });
@@ -425,12 +424,12 @@
           return;
         }
 
-        dateSelect.innerHTML = files.map(function(fn) {
-          return '<option value="' + esc(fn) + '">' + esc(fn.replace("_enhanced.jsonl", "")) + '</option>';
+        weekSelect.innerHTML = files.map(function(fn) {
+          return '<option value="' + esc(fn) + '">' + esc(fn.replace("_week_enhanced.jsonl", "")) + '</option>';
         }).join("");
 
         reloadBtn.addEventListener("click", loadSelected);
-        dateSelect.addEventListener("change", loadSelected);
+        weekSelect.addEventListener("change", loadSelected);
 
         await loadSelected();
       } catch (e) {
