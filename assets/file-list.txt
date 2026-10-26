@@ -1,3 +1,4 @@
+2026-10-12_week_enhanced.jsonl
 2026-10-05_week_enhanced.jsonl
 2026-09-28_week_enhanced.jsonl
 2026-09-21_week_enhanced.jsonl
