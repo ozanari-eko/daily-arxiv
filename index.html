@@ -83,6 +83,56 @@
     }
 
     button { cursor: pointer; }
+    button:disabled { cursor: default; opacity: 0.55; }
+    button:focus-visible, a:focus-visible, textarea:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 3px;
+    }
+    .review-toggle { margin-top: 14px; }
+    .review-toggle[aria-pressed="true"] {
+      border-color: var(--accent);
+      color: #dbeafe;
+      background: rgba(96,165,250,0.16);
+    }
+    .queue-status { color: var(--muted); font-size: 13px; line-height: 1.5; }
+    .queue-status.error { color: #fca5a5; }
+    #queueStatus { margin: 12px 0; }
+    .queue-dialog {
+      width: min(760px, calc(100vw - 28px));
+      max-height: calc(100dvh - 40px);
+      padding: 22px;
+      color: var(--text);
+      background: #0e1522;
+      border: 1px solid var(--border-strong);
+      border-radius: 18px;
+      overflow-y: auto;
+    }
+    .queue-dialog::backdrop { background: rgba(0,0,0,0.7); }
+    .queue-heading, .queue-actions, .queue-item-head {
+      display: flex; gap: 12px; justify-content: space-between; align-items: flex-start;
+    }
+    .queue-heading h2 { margin: 0; }
+    .queue-actions { margin-top: 18px; justify-content: flex-start; flex-wrap: wrap; }
+    .queue-help { color: var(--muted); line-height: 1.5; font-size: 13px; }
+    .queue-help code { overflow-wrap: anywhere; color: #dbeafe; }
+    .queue-items { list-style: none; padding: 0; margin: 18px 0; display: grid; gap: 12px; }
+    .queue-item { padding: 14px; border: 1px solid var(--border); border-radius: 12px; }
+    .queue-item-head a { font-weight: 600; line-height: 1.4; }
+    .queue-item-head button { flex-shrink: 0; }
+    .queue-item label { display: block; margin-top: 12px; font-size: 12px; color: var(--muted); }
+    .queue-item textarea {
+      display: block; width: 100%; resize: vertical; margin-top: 6px; min-height: 56px;
+      border: 1px solid var(--border); border-radius: 8px; padding: 9px;
+      background: var(--panel); color: var(--text); font: inherit; font-size: 13px;
+    }
+    @media (max-width: 680px) {
+      .topbar { flex-wrap: wrap; gap: 12px; }
+      .controls { flex-wrap: wrap; }
+      .paper-title { max-width: 100%; }
+      .row1 { flex-wrap: wrap; }
+      .queue-dialog { padding: 16px; }
+      .queue-item-head { flex-wrap: wrap; }
+    }
 
     .container {
       max-width: 1380px;
@@ -244,11 +294,13 @@
     <div class="controls">
       <select id="weekSelect" title="Select week"></select>
       <button id="reloadBtn">Reload</button>
+      <button id="reviewQueueBtn" aria-haspopup="dialog">Review queue (0)</button>
     </div>
   </header>
 
   <main class="container">
     <div class="stats" id="stats">Loading…</div>
+    <p id="queueStatus" class="queue-status" role="status" aria-live="polite"></p>
 
     <section id="highlightsSection">
       <div class="section-head">
@@ -267,6 +319,20 @@
     </section>
   </main>
 
+  <dialog class="queue-dialog" id="reviewQueueDialog" aria-labelledby="reviewQueueTitle">
+    <div class="queue-heading">
+      <h2 id="reviewQueueTitle">Review queue</h2>
+      <button id="closeQueueBtn" aria-label="Close review queue">Close</button>
+    </div>
+    <p class="queue-help">Selections stay in this browser profile, including when you change weeks. Export them before clearing browser data. They are not synced between devices.</p>
+    <ul class="queue-items" id="reviewQueueItems"></ul>
+    <div class="queue-actions">
+      <button id="exportQueueBtn" disabled>Export review queue</button>
+    </div>
+    <p class="queue-help">Save the exported file in:<br><code>/Users/ozanari/Projects/article-review/review-exports/</code><br>Then ask Codex to update article-review. Exporting keeps your selections here; it does not mean reports have been created.</p>
+    <p id="queueDialogStatus" class="queue-status" role="status" aria-live="polite"></p>
+  </dialog>
+
   <footer class="footer">
     Weekly local/GitHub Pages site.
   </footer>
@@ -280,6 +346,158 @@
         .replaceAll(">", "&gt;")
         .replaceAll('"', "&quot;")
         .replaceAll("'", "&#039;");
+    }
+
+    // Browser-local selection state. Export is the explicit handoff to the local importer.
+    var QUEUE_STORAGE_KEY = "daily-arxiv.review-queue.v1";
+    var reviewQueue = [];
+    var currentArticles = new Map();
+
+    function safeURL(value) {
+      try {
+        var u = new URL(String(value || ""));
+        return (u.protocol === "https:" || u.protocol === "http:") ? u.href : "#";
+      } catch (_) { return "#"; }
+    }
+
+    function articleID(item) {
+      var linkedID = "";
+      try {
+        var u = new URL(item.url || item.link || "");
+        if (u.hostname === "arxiv.org" || u.hostname === "www.arxiv.org" || u.hostname === "export.arxiv.org") {
+          linkedID = decodeURIComponent(u.pathname).replace(/^\/(abs|pdf|html)\//, "").replace(/\.pdf$/, "");
+        }
+      } catch (_) {}
+      var id = linkedID || String(item.arxiv_id || "").replace(/^arXiv:/i, "").trim();
+      return /^(?:\d{4}\.\d{4,5}|[a-z][a-z.\-]+\/\d{7})(?:v[1-9]\d*)?$/i.test(id) ? id : "";
+    }
+
+    function articleKey(item) { return articleID(item).replace(/v\d+$/, ""); }
+
+    function queueMessage(message, error) {
+      ["queueStatus", "queueDialogStatus"].forEach(function(id) {
+        var el = document.getElementById(id);
+        el.textContent = message;
+        el.classList.toggle("error", !!error);
+      });
+    }
+
+    function cleanQueueItem(item) {
+      if (!item || typeof item !== "object") return null;
+      var id = articleID(item);
+      if (!id) return null;
+      return {
+        arxiv_id: id,
+        title: String(item.title || id),
+        url: safeURL(item.url || item.link) === "#" ? "https://arxiv.org/abs/" + id : safeURL(item.url || item.link),
+        selected_at: typeof item.selected_at === "string" && Number.isFinite(Date.parse(item.selected_at)) ? item.selected_at : new Date().toISOString(),
+        notes: String(item.notes || "")
+      };
+    }
+
+    function restoreQueue() {
+      try {
+        var raw = localStorage.getItem(QUEUE_STORAGE_KEY);
+        if (!raw) return;
+        var saved = JSON.parse(raw);
+        if (!saved || saved.schema_version !== 1 || !Array.isArray(saved.items)) throw new Error("Unsupported queue format");
+        var seen = new Set();
+        reviewQueue = saved.items.map(cleanQueueItem).filter(function(item) {
+          if (!item || seen.has(articleKey(item))) return false;
+          seen.add(articleKey(item));
+          return true;
+        });
+        if (reviewQueue.length !== saved.items.length) queueMessage("Some invalid or duplicate saved selections were ignored. Please check your queue.", true);
+      } catch (_) {
+        queueMessage("Saved selections could not be loaded. You can select and export articles now, but keep an exported copy before leaving this page.", true);
+      }
+    }
+
+    function persistQueue() {
+      try {
+        localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify({schema_version: 1, items: reviewQueue}));
+        return true;
+      } catch (_) {
+        queueMessage("Browser storage is unavailable. Your selections are available in this tab only; export the queue before leaving.", true);
+        return false;
+      }
+    }
+
+    function isQueued(key) { return reviewQueue.some(function(item) { return articleKey(item) === key; }); }
+
+    function renderQueue() {
+      document.getElementById("reviewQueueBtn").textContent = "Review queue (" + reviewQueue.length + ")";
+      document.getElementById("exportQueueBtn").disabled = reviewQueue.length === 0;
+      document.getElementById("reviewQueueItems").innerHTML = reviewQueue.length ? reviewQueue.map(function(item, index) {
+        var key = articleKey(item);
+        return '<li class="queue-item"><div class="queue-item-head"><a href="' + esc(safeURL(item.url)) + '" target="_blank" rel="noopener noreferrer">' + esc(item.title) + '</a>'
+          + '<button type="button" data-remove-review="' + esc(key) + '" aria-label="Remove ' + esc(item.title) + ' from review queue">Remove</button></div>'
+          + '<div class="meta">arXiv: ' + esc(item.arxiv_id) + '</div>'
+          + '<label for="reviewNote' + index + '">Optional note<textarea id="reviewNote' + index + '" data-review-note="' + esc(key) + '" maxlength="4000">' + esc(item.notes) + '</textarea></label></li>';
+      }).join("") : '<li class="queue-help">Your queue is empty. Use Add to review on any article.</li>';
+      document.querySelectorAll("[data-review-key]").forEach(function(button) {
+        var queued = isQueued(button.dataset.reviewKey);
+        button.setAttribute("aria-pressed", String(queued));
+        button.textContent = queued ? "Queued for review" : "Add to review";
+      });
+    }
+
+    function toggleReview(key) {
+      if (isQueued(key)) reviewQueue = reviewQueue.filter(function(item) { return articleKey(item) !== key; });
+      else {
+        var item = cleanQueueItem(currentArticles.get(key));
+        if (!item) { queueMessage("This article has no valid arXiv identifier and could not be added.", true); return; }
+        reviewQueue.push(item);
+      }
+      if (persistQueue()) queueMessage("Review queue saved in this browser. Export it when you are ready to create reports.", false);
+      renderQueue();
+    }
+
+    function exportQueuePayload() {
+      return {schema_version: 1, source: "daily-arxiv", exported_at: new Date().toISOString(), items: reviewQueue.map(function(item) { return Object.assign({}, item); })};
+    }
+
+    function exportQueue() {
+      if (!reviewQueue.length) return;
+      var objectURL;
+      try {
+        var payload = exportQueuePayload();
+        var stamp = payload.exported_at.replace(/[-:]/g, "").replace("T", "-").slice(0, 15);
+        objectURL = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2) + "\n"], {type: "application/json"}));
+        var link = document.createElement("a");
+        link.href = objectURL;
+        link.download = "article-review-queue-" + stamp + ".json";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        // Keep the object URL alive until the browser has started the download.
+        setTimeout(function() { URL.revokeObjectURL(objectURL); }, 1000);
+        queueMessage("Export requested. Save the file in article-review/review-exports, then ask Codex to update article-review. Your selections remain in this queue.", false);
+      } catch (_) {
+        if (objectURL) URL.revokeObjectURL(objectURL);
+        queueMessage("The queue could not be downloaded. Your selections remain here; please try exporting again.", true);
+      }
+    }
+
+    function initializeQueue() {
+      restoreQueue();
+      renderQueue();
+      var dialog = document.getElementById("reviewQueueDialog");
+      document.getElementById("reviewQueueBtn").addEventListener("click", function() { dialog.showModal(); });
+      document.getElementById("closeQueueBtn").addEventListener("click", function() { dialog.close(); });
+      document.getElementById("exportQueueBtn").addEventListener("click", exportQueue);
+      document.addEventListener("click", function(event) {
+        var add = event.target.closest("[data-review-key]");
+        if (add) { toggleReview(add.dataset.reviewKey); return; }
+        var remove = event.target.closest("[data-remove-review]");
+        if (remove) { toggleReview(remove.dataset.removeReview); }
+      });
+      document.getElementById("reviewQueueItems").addEventListener("input", function(event) {
+        if (!event.target.matches("[data-review-note]")) return;
+        var key = event.target.dataset.reviewNote;
+        var item = reviewQueue.find(function(entry) { return articleKey(entry) === key; });
+        if (item) { item.notes = event.target.value.slice(0, 4000); persistQueue(); }
+      });
     }
 
     function getBasePath() {
@@ -304,7 +522,8 @@
 
     function renderCard(it, highlightMode) {
       var title = it.title || "(no title)";
-      var link = it.link || "#";
+      var link = safeURL(it.link);
+      var reviewKey = articleKey(it);
       var authorsArr = Array.isArray(it.authors) ? it.authors : [];
       var authors = authorsArr.slice(0, 6).join(", ");
       if (authorsArr.length > 6) authors += " et al.";
@@ -366,6 +585,7 @@
         + '  </div>'
         +      detailBlock
         +       (kwsHtml ? '<div class="chips">' + kwsHtml + '</div>' : '')
+        +       (reviewKey ? '<button type="button" class="review-toggle" data-review-key="' + esc(reviewKey) + '" aria-pressed="' + isQueued(reviewKey) + '">' + (isQueued(reviewKey) ? 'Queued for review' : 'Add to review') + '</button>' : '')
         + '</div>';
     }
 
@@ -392,6 +612,8 @@
 
         try {
           var items = await fetchJSONL(BASE + "/data/" + fn);
+          currentArticles = new Map();
+          items.forEach(function(item) { var key = articleKey(item); if (key) currentArticles.set(key, item); });
           var weekLabel = fn.replace("_week_enhanced.jsonl", "");
           stats.textContent = weekLabel + " week • " + items.length + " papers";
 
@@ -438,6 +660,7 @@
       }
     }
 
+    initializeQueue();
     main();
   </script>
 </body>
